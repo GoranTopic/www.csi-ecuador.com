@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "crawlee": "^3.6.2",
     "dotenv": "^16.3.1",
     "he": "^1.2.0"
   }
