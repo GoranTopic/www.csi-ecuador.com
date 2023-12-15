@@ -6,7 +6,7 @@ dotenv.config();
 let cookie = process.env.COOKIE;
 
 const url = 'http://www.csi-ecuador.com/ista/ista30/menu.php';
-const domain = 'csi-ecuador.com';
+const domain = 'http://www.csi-ecuador.com';
 
 const browser = await chromium.launch({
     headless: false,
