@@ -18,8 +18,8 @@ const context = await browser.newContext({
 // Add cookies to the browser context
 await context.addCookies([{
     url: domain,
-    name: 'Cookie',
-    value: cookie,
+    name: 'token',
+    value: cookie.split('=')[1],
     // Specify other cookie properties as needed
 }]);
 
