@@ -1,9 +1,12 @@
 import fs from 'fs';
-import dotenv from 'dotenv';
+import he from 'he';
 import { chromium } from 'playwright';
+import dotenv from 'dotenv';
 dotenv.config();
 
 let cookie = process.env.COOKIE;
+
+let userAgent = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P)';
 
 const url_base = 'http://www.csi-ecuador.com/ista/ista30/';
 const url_people = 'http://www.csi-ecuador.com/ista/ista30/tab_personas_list.php';
@@ -13,7 +16,7 @@ const browser = await chromium.launch({
     headless: false,
 })
 const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) '
+    userAgent: userAgent,
 });
 
 // Add cookies to the browser context
@@ -40,7 +43,7 @@ try {
     console.log(hrefs);
     console.log('Page loaded with custom user agent and cookies.');
 
-    await scrap_tab_personas_view(page, url_base + hrefs[0]);
+    await scrap_tab_personas_view(page, url_base + hrefs[4]);
     // You can add more code here to interact with the page
 
 } catch (error) {
@@ -50,7 +53,7 @@ try {
 }
 
 
-async function scrap_tab_personas_view(page, url){
+async function scrap_tab_personas_view(page, url) {
     // scrap the view of the people
     // go to the url
     await page.goto(url);
@@ -63,15 +66,31 @@ async function scrap_tab_personas_view(page, url){
     let link = url_base + await a.getAttribute('data-query');
     console.log(link);
     // make a get request from 
-    const fulltext = await page.evaluate(async link => {
-        let response = await window.fetch(link);
-        let data = await response.json();
-        console.log(data);
-        return data;
-    }, link);
-    console.log(fulltext);
+    let fulltext = await page.evaluate(async ({link, userAgent}) => {
+        let response = await window.fetch(link, {
+            "credentials": "include",
+            "headers": {
+                "User-Agent": userAgent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Content-Type": "multipart/form-data; boundary=---------------------------32765182862314041389985411710",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-GPC": "1",
+                "Pragma": "no-cache",
+                "Cache-Control": "no-cache"
+            },
+            "method": "POST",
+            "mode": "cors"
+        });
+        return await response.text();
+    }, ({link, userAgent}));
+    // parse the text
+    fulltext = JSON.parse(he.decode(fulltext)).textCont;
+
     // get parent span tag
     let span = await a.$('xpath=../..');
-    console.log(await span.innerText());
+    // replace span text with fulltext
+    span.innerText = fulltext;
+    console.log(await span.innerText);
     
 }
