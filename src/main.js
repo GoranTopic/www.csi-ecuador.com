@@ -91,6 +91,9 @@ async function scrap_tab_personas_view(page, url) {
     let span = await a.$('xpath=../..');
     // replace span text with fulltext
     span.innerText = fulltext;
+    await page.evaluate(async ({span}) => {
+        span.innerText = fulltext;
+    }, ({span}));
     console.log(await span.innerText);
     
 }
