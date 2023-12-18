@@ -54,17 +54,27 @@ try {
 
 
 async function scrap_tab_personas_view(page, url) {
-    // scrap the view of the people
+    /* scrap the view of the people */
     // go to the url
     await page.goto(url);
-    // print html
-    //console.log(await page.content());
-    // get an replace more span text
-    // find a tag with data-query atribute
-    // get link
-    let a = await page.$('a[data-query]');
+    // get all images tags
+    let images = await page.$$('img');
+    // get the src of the first image
+    let src = await images[0].getAttribute('src');
+    // download the image
+    await page.goto(url_base + src);
+    // get the name of the image
+    // get all a elements with the data-query attribute
+    //let a_element = await page.$$('a[data-query]');
+    // replace all the a elements with the fulltext
+    //for(let a of a_element) await query_replace_span(a);
+}
+
+async function query_replace_span(a){
+    // get the url
     let link = url_base + await a.getAttribute('data-query');
-    console.log(link);
+    // get parent span tag
+    let span = await a.$('xpath=../..');
     // make a get request from 
     let fulltext = await page.evaluate(async ({link, userAgent}) => {
         let response = await window.fetch(link, {
@@ -86,14 +96,12 @@ async function scrap_tab_personas_view(page, url) {
     }, ({link, userAgent}));
     // parse the text
     fulltext = JSON.parse(he.decode(fulltext)).textCont;
-
-    // get parent span tag
-    let span = await a.$('xpath=../..');
     // replace span text with fulltext
     span.innerText = fulltext;
-    await page.evaluate(async ({span}) => {
+    await page.evaluate(async ({span, fulltext}) => {
         span.innerText = fulltext;
-    }, ({span}));
-    console.log(await span.innerText);
-    
+    }, ({span, fulltext}));
 }
+
+
+
