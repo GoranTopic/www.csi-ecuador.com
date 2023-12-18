@@ -2,29 +2,32 @@ import fs from 'fs';
 import he from 'he';
 import { chromium } from 'playwright';
 import Checklist from 'checklist-js';
+import UserAgent from 'user-agents';
 import dotenv from 'dotenv';
 dotenv.config();
 
 let cookie = process.env.COOKIE;
 
-let userAgent = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P)';
+let userAgent = new UserAgent().toString();
+console.log(userAgent);
 
 const url_base = 'http://www.csi-ecuador.com/ista/ista30/';
 const url_people = 'http://www.csi-ecuador.com/ista/ista30/tab_personas_list.php?goto=';
 const domain = 'http://www.csi-ecuador.com';
 
-
 const storageDir = './storage';
 const imagesDir = './storage/images';
+const checklistsDir = './storage/checklists';
 
 // Make directory if it doesn't exist
 if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir);
 if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir);
+if (!fs.existsSync(checklistsDir)) fs.mkdirSync(checklistsDir);
 
-const browser = await chromium.launch({
+let browser = await chromium.launch({
     headless: false,
 })
-const context = await browser.newContext({
+let context = await browser.newContext({
     userAgent: userAgent,
     slowMo: 100,
 });
@@ -37,13 +40,18 @@ await context.addCookies([{
     // Specify other cookie properties as needed
 }]);
 
-const page = await context.newPage(); // Open new page
+let page = await context.newPage(); // Open new page
 
-
-const pages = new Checklist( Array.from({ length: 20 }, (_, index) => index + 1).map(i => url_people + i) );
-    
+const pages = new Checklist(
+    Array.from({ length: 270}, (_, index) => index ).map(i => url_people + i),
+    {
+        path: './storage/checklists/',
+        name: 'pages',
+    }
+);
 
 let urlpage = await pages.next();
+console.log(urlpage);
 while (urlpage) {
     try {
         console.log(`Page ${urlpage} started!`);
@@ -51,14 +59,37 @@ while (urlpage) {
         pages.check(urlpage);
         console.log(`Page ${urlpage} done!`);
         urlpage = await pages.next();
-        // await browser.close();   
     } catch (error) {
-        console.error('Error while scraping', error);
+        // wait for 30 to 60 seconds
+        console.log('Error while scraping', error);
+        console.log('Restarting browser')
+        console.log('Waiting for 60 to 120 seconds')
+        await wait(60, 120);
+        //
+        await browser.close();
+        browser = await chromium.launch({
+            headless: false,
+        })
+        userAgent = new UserAgent().toString();
+        console.log(`New User Agent: ${userAgent}`)
+        context = await browser.newContext({
+            userAgent: userAgent,
+            slowMo: 100,
+        });
+        // Add cookies to the browser context
+        await context.addCookies([{
+            url: domain,
+            name: 'token',
+            value: cookie.split('=')[1],
+            // Specify other cookie properties as needed
+        }]);
+        // new page
+        page = await context.newPage(); // Open new page
     }
 }
 
 async function scrap_personas_page(url) {
-    await wait(3, 4);
+    await wait(1, 2);
     // go to the url
     await page.goto(url);
     // get all a elements with the title="Ver registro"
@@ -175,6 +206,7 @@ function saveBase64Image(base64Data, filePath) {
 async function downloadImage(image, dir) {
     await wait(1, 2);
     let src = await image.getAttribute('src');
+    console.log('src', src);
     const imageFilename = decodeURIComponent(src.split('file=')[1].split('&')[0])
     // download the image
     let imgBuffer = await getImageBase64(page, url_base + src);
