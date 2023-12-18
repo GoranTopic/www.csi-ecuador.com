@@ -43,18 +43,18 @@ const page = await context.newPage(); // Open new page
 const pages = new Checklist( Array.from({ length: 20 }, (_, index) => index + 1).map(i => url_people + i) );
     
 
-try {
-    let urlpage = await pages.next();
-    while (urlpage) {
+let urlpage = await pages.next();
+while (urlpage) {
+    try {
         console.log(`Page ${urlpage} started!`);
         await scrap_personas_page(urlpage);
         pages.check(urlpage);
         console.log(`Page ${urlpage} done!`);
         urlpage = await pages.next();
+        // await browser.close();   
+    } catch (error) {
+        console.error('Error while scraping', error);
     }
-    // await browser.close();   
-} catch (error) {
-    console.error('Failed to load the page:', error);
 }
 
 async function scrap_personas_page(url) {
