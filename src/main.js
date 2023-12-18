@@ -62,8 +62,9 @@ async function scrap_tab_personas_view(page, url) {
     // get the src of the first image
     let src = await images[0].getAttribute('src');
     // download the image
-    await page.goto(url_base + src);
+    let imgBuffer = await getImageBuffer(page, url_base + src);
     // get the name of the image
+
     // get all a elements with the data-query attribute
     //let a_element = await page.$$('a[data-query]');
     // replace all the a elements with the fulltext
@@ -103,5 +104,28 @@ async function query_replace_span(a){
     }, ({span, fulltext}));
 }
 
-
+async function getImageBuffer(page, url) {
+    // download the image
+    let imgEncode64 = await page.evaluate(async ({ url, userAgent }) => {
+        return await window.fetch(url, {
+            "credentials": "include",
+            "headers": {
+                "User-Agent": userAgent,
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Pragma": "no-cache",
+                "Cache-Control": "no-cache"
+            },
+            "method": "GET",
+            "mode": "cors"
+        }).then(async res => await res.blob())
+            .then(blob => new Promise((res, rej) => {
+                const reader = new FileReader();
+                reader.onloadend = () => res(reader.result);
+                reader.onerror = rej;
+                reader.readAsDataURL(blob);
+            }))
+    }, ({ url, userAgent }));
+    return imgEncode64;
+}
 
