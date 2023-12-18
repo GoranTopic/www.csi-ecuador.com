@@ -1,6 +1,7 @@
 import fs from 'fs';
 import he from 'he';
 import { chromium } from 'playwright';
+import Checklist from 'checklist-js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -9,14 +10,23 @@ let cookie = process.env.COOKIE;
 let userAgent = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P)';
 
 const url_base = 'http://www.csi-ecuador.com/ista/ista30/';
-const url_people = 'http://www.csi-ecuador.com/ista/ista30/tab_personas_list.php';
+const url_people = 'http://www.csi-ecuador.com/ista/ista30/tab_personas_list.php?goto=';
 const domain = 'http://www.csi-ecuador.com';
+
+
+const storageDir = './storage';
+const imagesDir = './storage/images';
+
+// Make directory if it doesn't exist
+if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir);
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir);
 
 const browser = await chromium.launch({
     headless: false,
 })
 const context = await browser.newContext({
     userAgent: userAgent,
+    slowMo: 100,
 });
 
 // Add cookies to the browser context
@@ -29,9 +39,28 @@ await context.addCookies([{
 
 const page = await context.newPage(); // Open new page
 
+
+const pages = new Checklist( Array.from({ length: 20 }, (_, index) => index + 1).map(i => url_people + i) );
+    
+
 try {
-    await page.goto( url_people ) // Go to the url
-    // Perform any actions you need on the page here
+    let urlpage = await pages.next();
+    while (urlpage) {
+        console.log(`Page ${urlpage} started!`);
+        await scrap_personas_page(urlpage);
+        pages.check(urlpage);
+        console.log(`Page ${urlpage} done!`);
+        urlpage = await pages.next();
+    }
+    // await browser.close();   
+} catch (error) {
+    console.error('Failed to load the page:', error);
+}
+
+async function scrap_personas_page(url) {
+    await wait(3, 4);
+    // go to the url
+    await page.goto(url);
     // get all a elements with the title="Ver registro"
     let links = await page.$$('a[title="Ver registro"]');
     console.log(links.length);
@@ -39,39 +68,38 @@ try {
     let hrefs = await Promise.all(links.map(async (link) => {
         return await link.getAttribute('href');
     }));
-    console.log(hrefs.length);
-    console.log(hrefs);
-    console.log('Page loaded with custom user agent and cookies.');
-
-    await scrap_tab_personas_view(page, url_base + hrefs[4]);
-    // You can add more code here to interact with the page
-
-} catch (error) {
-    console.error('Failed to load the page:', error);
-} finally {
-    //await browser.close(); // Close the browser
+    let href_checklist = new Checklist(hrefs);
+    // scrap all the people
+    let href = href_checklist.next();
+    while (href) {
+        await scrap_tab_personas_view(page, href);
+        console.log(`Person ${href} done!`);
+        href_checklist.check(href);
+        href = href_checklist.next();
+    }
 }
 
-
-async function scrap_tab_personas_view(page, url) {
+async function scrap_tab_personas_view(page, href) {
     /* scrap the view of the people */
+    await wait(1, 2);
+    // make the url from the href
+    let url = url_base + href;
     // go to the url
     await page.goto(url);
     // get all images tags
     let images = await page.$$('img');
-    // get the src of the first image
-    let src = await images[0].getAttribute('src');
-    // download the image
-    let imgBuffer = await getImageBuffer(page, url_base + src);
-    // get the name of the image
-
+    // donwload all the images
+    for(let image of images) await downloadImage(image, './storage/images/');
     // get all a elements with the data-query attribute
-    //let a_element = await page.$$('a[data-query]');
+    let a_element = await page.$$('a[data-query]');
     // replace all the a elements with the fulltext
-    //for(let a of a_element) await query_replace_span(a);
+    for(let a of a_element) await query_replace_span(a);
+    // save the html as a html file of the page with the href name
+    await save_html(page, './storage/' + href);
 }
 
 async function query_replace_span(a){
+    await wait(1, 2);
     // get the url
     let link = url_base + await a.getAttribute('data-query');
     // get parent span tag
@@ -104,7 +132,7 @@ async function query_replace_span(a){
     }, ({span, fulltext}));
 }
 
-async function getImageBuffer(page, url) {
+async function getImageBase64(page, url) {
     // download the image
     let imgEncode64 = await page.evaluate(async ({ url, userAgent }) => {
         return await window.fetch(url, {
@@ -129,3 +157,45 @@ async function getImageBuffer(page, url) {
     return imgEncode64;
 }
 
+function saveBase64Image(base64Data, filePath) {
+    return new Promise((resolve, reject) => {
+        // Remove Base64 URL prefix (if present) and convert Base64 to binary
+        const base64Image = base64Data.split(';base64,').pop();
+        // Write the binary data to a file
+        fs.writeFile(filePath, base64Image, { encoding: 'base64' }, error => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(`File saved at ${filePath}`);
+            }
+        });
+    });
+}
+
+async function downloadImage(image, dir) {
+    await wait(1, 2);
+    let src = await image.getAttribute('src');
+    const imageFilename = decodeURIComponent(src.split('file=')[1].split('&')[0])
+    // download the image
+    let imgBuffer = await getImageBase64(page, url_base + src);
+    // write the image to a file
+    await saveBase64Image(imgBuffer, dir + imageFilename);
+    // replace the img src in the html with the name of the image
+    await page.evaluate(async ({ image, imageFilename }) => {
+        image.src = imageFilename;
+    }, ({ image, imageFilename }));
+}
+
+async function save_html(page, path) {
+    let html = await page.content();
+    fs.writeFile(path + '.html', html, function (err) {
+        if (err) throw err;
+        console.log('Saved!');
+    });
+}
+
+// make me a function that wait for random seconds between two values
+async function wait(min, max) {
+    let seconds = Math.random() * (max - min) + min;
+    await page.waitForTimeout(seconds * 1000);
+}

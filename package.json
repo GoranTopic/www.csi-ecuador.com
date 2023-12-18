@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "checklist-js": "^1.2.3",
     "crawlee": "^3.6.2",
     "dotenv": "^16.3.1",
     "he": "^1.2.0",
