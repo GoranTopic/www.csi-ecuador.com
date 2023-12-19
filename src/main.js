@@ -115,10 +115,15 @@ async function scrap_tab_personas_view(page, href) {
     await wait(1, 2);
     // make the url from the href
     let url = url_base + href;
-    // go to the url
-    await page.goto(url);
-    // get all images tags
-    let images = await page.$$('img');
+    // go to the url with a unlimited timeout
+    await page.goto(url, { timeout: 0 });
+    // get all dive with the clases r-images r-masonry
+    let divs = await page.$$('div.r-images.r-masonry');
+    // get all ofever div
+    let images = await Promise.all(divs.map(async (div) => {
+        div = await div.$('img');
+        return div;
+    }));
     // donwload all the images
     for(let image of images) await downloadImage(image, './storage/images/');
     // get all a elements with the data-query attribute
